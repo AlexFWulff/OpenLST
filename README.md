@@ -3,6 +3,10 @@
 OpenLST is an open source, proven radio design for communicating with remote
 instruments, vehicles, and stations using low-cost commercial components.
 
+This repository is a fork of the original OpenLST software repository,
+with custom software implementation for the Harvard Satellite
+Club.
+
 ## History
 
 Planet developed the Low-Speed Transceiver (LST) for UHF telemetry, command,
