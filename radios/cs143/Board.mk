@@ -14,12 +14,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-include radios/cs143/Board.mk
-include radios/openlst_437/Board.mk
-include open-lst/Build.mk
+RADIOS += cs143
+BOOTLOADERS += cs143
+cs143_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
-.PHONY: clean
+# Source files
+cs143_SRCS := \
+	$(cs143_DIR)/board.c
 
-vagrant: Vagrantfile
-	vagrant up
-	vagrant reload
+cs143_CFLAGS := -DCUSTOM_BOARD_INIT -I$(cs143_DIR)
+
+# Disable UART0 in the bootloader to save space
+cs143_BOOTLOADER_CFLAGS := -DUART0_ENABLED=0
