@@ -17,6 +17,12 @@
 #include <cc1110.h>
 #include "cc1110_regs.h"
 
+#include "commands.h"
+#include "board.h"
+#include "board_defaults.h"
+#include "hwid.h"
+#include "uart0.h"
+
 void board_init(void) {
 	// LED0 setup - just turn it on
 	P0SEL &= ~(1<<6);  // GPIO not peripheral
@@ -44,6 +50,35 @@ void board_init(void) {
         IOCFG1 = IOCFG1_GDO1_INV_ACTIVE_LOW | IOCFG_GDO_CFG_LNA_PD;
         // No special function for P1_5 (IOCFG0)
 }
+
+
+uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata command_t *reply) {
+  uint8_t reply_length;
+  
+  // ensure that this is a message we expect
+  if (cmd->header.command == hsat_msg && len == sizeof(command_header_t) + sizeof(hsat_msg_data_t)) {
+      __xdata hsat_msg_data_t *reply_data = (__xdata hsat_msg_data_t *) cmd->data;
+      // could sniff data here if desired
+      // ...
+      
+      // for now just send the message data out to UART0
+
+      // I don't see any problems with typecasting the pointer to the struct to a byte array
+      // but it's worth checking if this is right
+      uart0_send_message((__xdata const unsigned char *)reply_data, sizeof(hsat_msg_data_t));
+      reply->header.command = common_msg_ack;
+  }
+
+  else {
+    // this is the default but it's nice to have it here
+    reply->header.command = common_msg_nack;
+  }
+
+  // just going to reply with an ACK for now
+  reply_length = (uint8_t) sizeof(command_header_t);
+  return reply_length;
+}
+
 
 void board_led_set(__bit led_on) {
   P0_7 = led_on;

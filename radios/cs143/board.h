@@ -42,4 +42,19 @@ void board_led_set(__bit led_on);
 // Disable on-board power amp bias, to save power
 #define board_pre_rx() P2_0 = 0;
 
+// ############ Custom Implementation #############
+#define CUSTOM_COMMANDS 1
+
+uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata command_t *reply);
+
+typedef union {
+  uint8_t byte1;
+  uint8_t byte2;
+  uint8_t byte3;
+} hsat_msg_data_t;
+
+typedef enum {
+  hsat_msg = 0x7F,
+} hsat_message_no;
+
 #endif
