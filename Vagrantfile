@@ -36,3 +36,5 @@ Vagrant.configure("2") do |config|
       "--product", "TTL232R-3V3"]
   end
 end
+
+$enable_serial_logging = false
