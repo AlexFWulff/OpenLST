@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import logging
 import six
 import struct
 from abc import ABCMeta, abstractproperty
@@ -332,6 +333,11 @@ class Translator(object):
             raise ValueError("don't know system '%r'" % s)
         rv.extend(CMD_STRING_MAP[tokens[1]].tokens_to_bytes(tokens[2:]))
 
+        logging.basicConfig()
+        log = logging.getLogger()
+        log.setLevel(logging.DEBUG)
+        log.debug(list(rv))
+        
         return rv
 
     def string_from_bytes(self, b):
