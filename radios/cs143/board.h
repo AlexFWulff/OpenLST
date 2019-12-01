@@ -43,6 +43,7 @@ void board_led_set(__bit led_on);
 #define board_pre_rx() P2_0 = 0;
 
 // ############ Custom Implementation #############
+#define CONFIG_UART1_USE_FLOW_CTRL 0
 #define CUSTOM_COMMANDS 1
 
 uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata command_t *reply);
