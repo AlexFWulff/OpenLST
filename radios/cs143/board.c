@@ -55,28 +55,76 @@ void board_init(void) {
 uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata command_t *reply) {
   uint8_t reply_length;
   
-  // ensure that this is a message we expect
-  if (cmd->header.command == hsat_msg && len == sizeof(command_header_t) + sizeof(hsat_msg_data_t)) {
-      __xdata hsat_msg_data_t *reply_data = (__xdata hsat_msg_data_t *) cmd->data;
-      // could sniff data here if desired
-      // ...
+  __xdata hsat_status_t *status_data;
+  __xdata hsat_status_header_t *header;
+  __xdata uint8_t *payload;
+
+  __xdata hsat_status_ack_t *status_ack_data;
+  
+  switch (cmd->header.command) {
+    case hsat_dump_status_cmd:
+      // just a header so no data here
+      role = ROLE_SAT;
+      last_sent = 0;
+
+      send_next_window();
       
-      // for now just send the message data out to UART0
+      break;
+      
+    case hsat_status_cmd:
+      // theoretically we should set this when the dump_status command is set
+      role = ROLE_GND;
+      
+      status_data = (__xdata hsat_status_t *) cmd->data;
+      header = &status_data->header;
+      payload = status_data->payload;
+      
+      break;
 
-      // I don't see any problems with typecasting the pointer to the struct to a byte array
-      // but it's worth checking if this is right
-      uart0_send_message((__xdata const unsigned char *)reply_data, sizeof(hsat_msg_data_t));
-      reply->header.command = common_msg_ack;
+    case hsat_status_ack_cmd:
+      status_ack_data = (__xdata hsat_status_ack_t *) cmd->data;
+
+      break;
+
+    default:
+      break;
   }
 
-  else {
-    // this is the default but it's nice to have it here
-    reply->header.command = common_msg_nack;
-  }
-
-  // just going to reply with an ACK for now
-  reply_length = (uint8_t) sizeof(command_header_t);
+  len; reply; reply_length = 0;
   return reply_length;
+}
+
+uint8_t send_next_window() {
+  uint8_t done = 0;
+  uint8_t iter;
+  uint8_t len;
+  
+  for (iter = 0; iter < WS; iter++) {
+    if ((last_sent + 1) * WS > data_len) {
+      len = data_len - last_sent * WS; // check this
+      done = 1;
+    }
+
+    else {
+      len = WS;
+    }
+
+    status.header.len = len;
+    status.header.seqnum_start = 0;
+    status.header.seqnum_finish = 0;
+    status.header.window_size = WS;
+      
+    // few things I'm not sure about here:
+    // do I need to reference& status->payload?
+    memcpyx((__xdata void *) status.payload,
+	    (__xdata void *) (data_q + WS * (last_sent + 1)),
+	    sizeof(len));
+
+    // SEND IT HERE
+    if (done) return 0;
+  }
+
+  return 1;
 }
 
 

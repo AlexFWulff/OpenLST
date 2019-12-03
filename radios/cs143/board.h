@@ -43,19 +43,53 @@ void board_led_set(__bit led_on);
 #define board_pre_rx() P2_0 = 0;
 
 // ############ Custom Implementation #############
-#define CONFIG_UART1_USE_FLOW_CTRL 0
+
+// configuration flags
+#define FORWARD_MESSAGES_RF 1
 #define CUSTOM_COMMANDS 1
 
+// functions
 uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata command_t *reply);
+uint8_t send_next_window();
 
-typedef union {
-  uint8_t byte1;
-  uint8_t byte2;
-  uint8_t byte3;
-} hsat_msg_data_t;
+// custom parameters
+#define ROLE_GND 0
+#define ROLE_SAT 1
+#define WS 4 // window size
+#define SAMPLE_DATA_LEN 64
 
+// comand structs
+typedef struct hsat_status_ack {
+  uint8_t num_lost;
+  uint16_t lost_packets[120]; // ~ data size / 2
+} hsat_status_ack_t;
+
+typedef struct hsat_status_header {
+  uint16_t seqnum_start;
+  uint16_t sequnum_finish;
+  uint8_t window_size;
+  uint16_t len;
+} hsat_status_header_t;
+
+//#define PAYLOAD_SIZE ESP_MAX_PAYLOAD - sizeof(command_header_t) - sizeof(hsat_status_header_t)
+#define PAYLOAD_SIZE 2 // nice and easy test ;)
+
+typedef struct hsat_status {
+  hsat_status_header_t header;
+  uint8_t payload[PAYLOAD_SIZE];
+} hsat_status_t;
+  
 typedef enum {
-  hsat_msg = 0x7F,
-} hsat_message_no;
+  hsat_status_ack_cmd = 0x7F,
+  hsat_dump_status_cmd = 0x80,
+  hsat_status_cmd = 0x81,
+} hsat_msg_type;
+
+// application variables
+uint8_t role; // satellite (1) or groundstation (0)?
+uint16_t last_sent;
+__xdata uint16_t data_len = SAMPLE_DATA_LEN;
+__xdata uint8_t data_q[SAMPLE_DATA_LEN];
+static __xdata hsat_status_t status; // not positive about status here
 
 #endif
