@@ -2,8 +2,8 @@
 data_rate_bps = 3000;
 pass_len_mins = 10;
 RTT_ms = 200;
-max_payload_size = 240; % bytes
-data_size = 100000; % bytes
+max_payload_size = 20; % bytes
+data_size = 5000; % bytes
 
 % Intermediates
 data_rate = floor(data_rate_bps / 8); % Bps

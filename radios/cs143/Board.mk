@@ -25,5 +25,4 @@ cs143_SRCS := \
 cs143_CFLAGS := -DCUSTOM_BOARD_INIT -I$(cs143_DIR)
 
 # Disable UART0 in the bootloader to save space
-# actually going to leave it enabled for now
-#cs143_BOOTLOADER_CFLAGS := -DUART0_ENABLED=0
+cs143_BOOTLOADER_CFLAGS := -DUART0_ENABLED=0

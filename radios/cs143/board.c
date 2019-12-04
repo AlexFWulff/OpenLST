@@ -21,7 +21,17 @@
 #include "board.h"
 #include "board_defaults.h"
 #include "hwid.h"
-#include "uart0.h"
+
+#include "stringx.h"
+#include "uart1.h"
+
+uint8_t role; // satellite (1) or groundstation (0)?                                                                                                                                        
+uint16_t last_sent;
+uint16_t data_len;
+__xdata uint8_t data_q[SAMPLE_DATA_LEN];
+
+__xdata uint16_t dropped_packets[WS];
+uint8_t drop_count;
 
 void board_init(void) {
 	// LED0 setup - just turn it on
@@ -49,10 +59,12 @@ void board_init(void) {
         // P1_6 = PA_PD  (asserted low in RX) = !LST_RX_MODE
         IOCFG1 = IOCFG1_GDO1_INV_ACTIVE_LOW | IOCFG_GDO_CFG_LNA_PD;
         // No special function for P1_5 (IOCFG0)
+
+  data_len = SAMPLE_DATA_LEN;
 }
 
-
 uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata command_t *reply) {
+  
   uint8_t reply_length;
   
   __xdata hsat_status_t *status_data;
@@ -66,8 +78,9 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
       // just a header so no data here
       role = ROLE_SAT;
       last_sent = 0;
+      drop_count = 0;
 
-      send_next_window();
+      send_next_window(reply);
       
       break;
       
@@ -78,6 +91,8 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
       status_data = (__xdata hsat_status_t *) cmd->data;
       header = &status_data->header;
       payload = status_data->payload;
+
+      // ... deal with data
       
       break;
 
@@ -89,41 +104,54 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
     default:
       break;
   }
-
+  
   len; reply; reply_length = 0;
   return reply_length;
 }
 
-uint8_t send_next_window() {
+
+uint8_t send_next_window(__xdata command_t *status_cmd) {
   uint8_t done = 0;
-  uint8_t iter;
-  uint8_t len;
+  uint8_t i; uint8_t drop_index = 0;
+  uint8_t payload_len;
+  uint8_t ws_bytes = WS * PAYLOAD_SIZE;
+  uint8_t command_header_size = sizeof(sizeof(hsat_status_header_t) + sizeof(command_header_t));
   
-  for (iter = 0; iter < WS; iter++) {
-    if ((last_sent + 1) * WS > data_len) {
-      len = data_len - last_sent * WS; // check this
+  
+  __xdata command_buffer_t *buf = (__xdata command_buffer_t *) status_cmd;
+  hsat_status_t *status = (__xdata hsat_status_t *) status_cmd->data;
+  
+  for (i = 0; i < WS; i++) {
+    
+    if ((last_sent + 1) * ws_bytes > data_len) {
+      payload_len = data_len - last_sent * ws_bytes;
       done = 1;
     }
 
     else {
-      len = WS;
+      payload_len = ws_bytes;
     }
 
-    status.header.len = len;
-    status.header.seqnum_start = 0;
-    status.header.seqnum_finish = 0;
-    status.header.window_size = WS;
+    status_cmd->header.hwid = hwid_flash;
+    status_cmd->header.seqnum = 0;
+    status_cmd->header.system = MSG_TYPE_RADIO_OUT;
+    status_cmd->header.command = hsat_status_cmd;
+    
+    status->header.len = payload_len;
+    status->header.seqnum_start = 0;
+    status->header.seqnum_finish = 0;
+    status->header.window_size = WS;
       
-    // few things I'm not sure about here:
-    // do I need to reference& status->payload?
-    memcpyx((__xdata void *) status.payload,
+    memcpyx((__xdata void *) status->payload,
 	    (__xdata void *) (data_q + WS * (last_sent + 1)),
-	    sizeof(len));
-
-    // SEND IT HERE
+	    sizeof(payload_len));
+    
+    uart1_send_message(buf->msg, payload_len + command_header_size);
+    
     if (done) return 0;
   }
 
+  last_sent = last_sent + WS - drop_count;
   return 1;
 }
 
@@ -131,3 +159,4 @@ uint8_t send_next_window() {
 void board_led_set(__bit led_on) {
   P0_7 = led_on;
 }
+
