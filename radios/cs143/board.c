@@ -26,7 +26,7 @@
 #include "uart1.h"
 
 uint8_t role; // satellite (1) or groundstation (0)?                                                                                                                                        
-uint16_t last_sent;
+int last_sent;
 uint16_t data_len;
 __xdata uint8_t data_q[SAMPLE_DATA_LEN];
 
@@ -60,7 +60,9 @@ void board_init(void) {
         IOCFG1 = IOCFG1_GDO1_INV_ACTIVE_LOW | IOCFG_GDO_CFG_LNA_PD;
         // No special function for P1_5 (IOCFG0)
 
+  // set sample data to 0
   data_len = SAMPLE_DATA_LEN;
+  memsetx((char __xdata *) data_q, 0, SAMPLE_DATA_LEN);
 }
 
 uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata command_t *reply) {
@@ -73,11 +75,12 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
 
   __xdata hsat_status_ack_t *status_ack_data;
   
+  
   switch (cmd->header.command) {
     case hsat_dump_status_cmd:
       // just a header so no data here
       role = ROLE_SAT;
-      last_sent = 0;
+      last_sent = -1;
       drop_count = 0;
 
       send_next_window(reply);
@@ -85,7 +88,6 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
       break;
       
     case hsat_status_cmd:
-      // theoretically we should set this when the dump_status command is set
       role = ROLE_GND;
       
       status_data = (__xdata hsat_status_t *) cmd->data;
@@ -98,61 +100,88 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
 
     case hsat_status_ack_cmd:
       status_ack_data = (__xdata hsat_status_ack_t *) cmd->data;
+      drop_count = status_ack_data->num_lost;
+      memcpyx((__xdata void *) &dropped_packets,
+	      (__xdata void *) status_ack_data->lost_packets,
+	      drop_count * sizeof(uint16_t));
 
+      send_next_window(reply);
+      
       break;
 
     default:
       break;
   }
-  
+
+  // #TODO - use len here
   len; reply; reply_length = 0;
   return reply_length;
 }
 
 
-uint8_t send_next_window(__xdata command_t *status_cmd) {
+void send_next_window(__xdata command_t *status_cmd) {
   uint8_t done = 0;
-  uint8_t i; uint8_t drop_index = 0;
+  uint8_t i; uint8_t drop_index = 0; uint8_t data_index = 0;
   uint8_t payload_len;
-  uint8_t ws_bytes = WS * PAYLOAD_SIZE;
+
   uint8_t command_header_size = sizeof(sizeof(hsat_status_header_t) + sizeof(command_header_t));
-  
   
   __xdata command_buffer_t *buf = (__xdata command_buffer_t *) status_cmd;
   hsat_status_t *status = (__xdata hsat_status_t *) status_cmd->data;
+
+  uint16_t seqnum_start = 0;
+  uint16_t seqnum_finish = 0;
+
+  // drop count < WS because if all packets in the window are dropped the groundstation won't ACK
+  if (drop_count < WS) {
+    seqnum_start = last_sent + 1;
+    seqnum_finish = last_sent + WS - drop_count;
+  }
   
   for (i = 0; i < WS; i++) {
-    
-    if ((last_sent + 1) * ws_bytes > data_len) {
-      payload_len = data_len - last_sent * ws_bytes;
+    if (drop_index < drop_count) {
+      data_index = dropped_packets[drop_index];
+      drop_index++;
+    }
+
+    else {
+      last_sent++;
+      data_index = last_sent;
+    }
+
+    if (data_index * PAYLOAD_SIZE > data_len) {
+      payload_len = data_index * PAYLOAD_SIZE - data_len;
       done = 1;
     }
 
     else {
-      payload_len = ws_bytes;
+      payload_len = PAYLOAD_SIZE;
     }
 
     status_cmd->header.hwid = hwid_flash;
-    status_cmd->header.seqnum = 0;
+    status_cmd->header.seqnum = data_index;
     status_cmd->header.system = MSG_TYPE_RADIO_OUT;
     status_cmd->header.command = hsat_status_cmd;
     
     status->header.len = payload_len;
-    status->header.seqnum_start = 0;
-    status->header.seqnum_finish = 0;
+    status->header.seqnum_start = seqnum_start;
+    status->header.seqnum_finish = seqnum_finish;
     status->header.window_size = WS;
       
     memcpyx((__xdata void *) status->payload,
-	    (__xdata void *) (data_q + WS * (last_sent + 1)),
+	    (__xdata void *) (&data_q[payload_len * data_index]),
 	    sizeof(payload_len));
     
     uart1_send_message(buf->msg, payload_len + command_header_size);
     
-    if (done) return 0;
+    if (done) {
+      // send a done packet here
+      // ...
+      return;
+    }
   }
 
-  last_sent = last_sent + WS - drop_count;
-  return 1;
+  return;
 }
 
 

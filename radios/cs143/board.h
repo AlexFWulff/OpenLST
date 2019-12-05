@@ -50,15 +50,15 @@ void board_led_set(__bit led_on);
 
 // functions
 uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata command_t *reply);
-uint8_t send_next_window(__xdata command_t *status_cmd);
+void send_next_window(__xdata command_t *status_cmd);
 
 // custom parameters
 #define ROLE_GND 0
 #define ROLE_SAT 1
-#define WS 4 // window size
-#define SAMPLE_DATA_LEN 64
+#define WS 2 // window size
+#define SAMPLE_DATA_LEN 20
 //#define PAYLOAD_SIZE ESP_MAX_PAYLOAD - sizeof(command_header_t) - sizeof(hsat_status_header_t)
-#define PAYLOAD_SIZE 2 // nice and easy test ;)
+#define PAYLOAD_SIZE 3 // nice and easy test ;)
 
 // comand structs
 typedef struct hsat_status_ack {
@@ -83,11 +83,5 @@ typedef enum {
   hsat_dump_status_cmd = 0x80,
   hsat_status_cmd = 0x81,
 } hsat_msg_type;
-
-// application variables
-extern uint8_t role; // satellite (1) or groundstation (0)?
-extern uint16_t last_sent;
-extern uint16_t data_len;
-extern __xdata uint8_t data_q[SAMPLE_DATA_LEN];
 
 #endif
