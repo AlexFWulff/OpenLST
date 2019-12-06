@@ -77,16 +77,19 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
   
   
   switch (cmd->header.command) {
+    // dump status data
     case hsat_dump_status_cmd:
       // just a header so no data here
       role = ROLE_SAT;
       last_sent = -1;
       drop_count = 0;
-      
+
+      // send first data window
       send_next_window(reply);
       
       break;
-      
+
+    // received status data  
     case hsat_status_cmd:
       role = ROLE_GND;
       
@@ -98,6 +101,7 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
       
       break;
 
+    // received status acknowledgement
     case hsat_status_ack_cmd:
       status_ack_data = (__xdata hsat_status_ack_t *) cmd->data;
       drop_count = status_ack_data->num_lost;
@@ -105,6 +109,7 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
 	      (__xdata void *) status_ack_data->lost_packets,
 	      drop_count * sizeof(uint16_t));
 
+      // send next window after parsing dropped packets
       send_next_window(reply);
       
       break;
@@ -124,6 +129,7 @@ void send_next_window(__xdata command_t *status_cmd) {
   uint8_t i; uint8_t drop_index = 0; uint8_t data_index = 0;
   uint8_t payload_len;
 
+  // don't know why we need the -1, but apparently it's necessary otherwise 1 extra byte is sent
   uint8_t command_header_size = sizeof(hsat_status_header_t) + sizeof(command_header_t) - 1;
   
   __xdata command_buffer_t *buf = (__xdata command_buffer_t *) status_cmd;
@@ -131,41 +137,26 @@ void send_next_window(__xdata command_t *status_cmd) {
 
   uint16_t seqnum_start = 0;
   uint16_t seqnum_finish = 0;
-
-  /*
-    status_cmd->header.hwid = hwid_flash;
-    status_cmd->header.seqnum = 69;
-    status_cmd->header.system = MSG_TYPE_RADIO_OUT;
-    status_cmd->header.command = hsat_status_cmd;
-    
-    status->header.len = 5;
-    status->header.seqnum_start = 70;
-    status->header.seqnum_finish = 70;
-    status->header.window_size = WS;
-      
-    memcpyx((__xdata void *) status->payload,
-	    (__xdata void *) data_q, 5);
-    
-    uart1_send_message(buf->msg, 5 + command_header_size);
-  */
-    
+   
   // drop count < WS because if all packets in the window are dropped the groundstation won't ACK
-  if (drop_count < WS) {
-    seqnum_start = last_sent + 1;
-    seqnum_finish = last_sent + WS - drop_count;
-  }
-  
+  seqnum_start = last_sent + 1;
+  seqnum_finish = last_sent + WS - drop_count;
+
+  // package and send the window
   for (i = 0; i < WS; i++) {
+    // while there are still drops to retransmit ...
     if (drop_index < drop_count) {
       data_index = dropped_packets[drop_index];
       drop_index++;
     }
 
+    // otherwise just send the next new packet
     else {
       last_sent++;
       data_index = last_sent;
     }
 
+    // check if it's the last packet
     if (data_index * PAYLOAD_SIZE > data_len) {
       payload_len = data_index * PAYLOAD_SIZE - data_len;
       done = 1;
@@ -175,6 +166,7 @@ void send_next_window(__xdata command_t *status_cmd) {
       payload_len = PAYLOAD_SIZE;
     }
 
+    // eventually need to pull dest hwid from the dump_status packet
     status_cmd->header.hwid = hwid_flash;
     status_cmd->header.seqnum = data_index;
     status_cmd->header.system = MSG_TYPE_RADIO_OUT;
@@ -184,11 +176,13 @@ void send_next_window(__xdata command_t *status_cmd) {
     status->header.seqnum_start = seqnum_start;
     status->header.seqnum_finish = seqnum_finish;
     status->header.window_size = WS;
-      
+
+    // actually copy the payload data into the packet
     memcpyx((__xdata void *) status->payload,
 	    (__xdata void *) (&data_q[payload_len * data_index]),
 	    sizeof(payload_len));
-    
+
+    // send over UART instead of radio for now
     uart1_send_message(buf->msg, payload_len + command_header_size);
     
     if (done) {
