@@ -31,10 +31,10 @@ typedef enum {
 typedef uint8_t radio_msg_no_t;
 
 typedef struct command_header {
-	hwid_t hwid;
+        hwid_t hwid; // uint16_t
 	uint16_t seqnum;
 	uint8_t system;
-	radio_msg_no_t command;
+        radio_msg_no_t command; // uint8_t
 } command_header_t;
 
 typedef struct command {

@@ -82,7 +82,7 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
       role = ROLE_SAT;
       last_sent = -1;
       drop_count = 0;
-
+      
       send_next_window(reply);
       
       break;
@@ -124,7 +124,7 @@ void send_next_window(__xdata command_t *status_cmd) {
   uint8_t i; uint8_t drop_index = 0; uint8_t data_index = 0;
   uint8_t payload_len;
 
-  uint8_t command_header_size = sizeof(sizeof(hsat_status_header_t) + sizeof(command_header_t));
+  uint8_t command_header_size = sizeof(hsat_status_header_t) + sizeof(command_header_t) - 1;
   
   __xdata command_buffer_t *buf = (__xdata command_buffer_t *) status_cmd;
   hsat_status_t *status = (__xdata hsat_status_t *) status_cmd->data;
@@ -132,6 +132,23 @@ void send_next_window(__xdata command_t *status_cmd) {
   uint16_t seqnum_start = 0;
   uint16_t seqnum_finish = 0;
 
+  /*
+    status_cmd->header.hwid = hwid_flash;
+    status_cmd->header.seqnum = 69;
+    status_cmd->header.system = MSG_TYPE_RADIO_OUT;
+    status_cmd->header.command = hsat_status_cmd;
+    
+    status->header.len = 5;
+    status->header.seqnum_start = 70;
+    status->header.seqnum_finish = 70;
+    status->header.window_size = WS;
+      
+    memcpyx((__xdata void *) status->payload,
+	    (__xdata void *) data_q, 5);
+    
+    uart1_send_message(buf->msg, 5 + command_header_size);
+  */
+    
   // drop count < WS because if all packets in the window are dropped the groundstation won't ACK
   if (drop_count < WS) {
     seqnum_start = last_sent + 1;
@@ -180,7 +197,7 @@ void send_next_window(__xdata command_t *status_cmd) {
       return;
     }
   }
-
+ 
   return;
 }
 
