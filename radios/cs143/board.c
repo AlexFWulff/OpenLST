@@ -94,6 +94,7 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
       role = ROLE_GND;
       
       status_data = (__xdata hsat_status_t *) cmd->data;
+      // #TODO: this might have to be &(status_data->header) since we don't want to reference status_data again
       header = &status_data->header;
       payload = status_data->payload;
 
@@ -105,6 +106,7 @@ uint8_t custom_commands(const __xdata command_t *cmd, uint8_t len, __xdata comma
     case hsat_status_ack_cmd:
       status_ack_data = (__xdata hsat_status_ack_t *) cmd->data;
       drop_count = status_ack_data->num_lost;
+      // #TODO: I don't think dropped_packets should be referenced here - it's already a pointer
       memcpyx((__xdata void *) &dropped_packets,
 	      (__xdata void *) status_ack_data->lost_packets,
 	      drop_count * sizeof(uint16_t));
@@ -135,6 +137,7 @@ void send_next_window(__xdata command_t *status_cmd) {
   __xdata command_buffer_t *buf = (__xdata command_buffer_t *) status_cmd;
   hsat_status_t *status = (__xdata hsat_status_t *) status_cmd->data;
 
+  // #TODO why not combine this with the next two lines?
   uint16_t seqnum_start = 0;
   uint16_t seqnum_finish = 0;
    
@@ -179,7 +182,9 @@ void send_next_window(__xdata command_t *status_cmd) {
 
     // actually copy the payload data into the packet
     memcpyx((__xdata void *) status->payload,
+	    // #TODO: I also think the indexing should be PAYLOAD_SIZE * data_index otherwise it fucks up on the last packet
 	    (__xdata void *) (&data_q[payload_len * data_index]),
+	    // #TODO: sizeof seems wrong here, right? - almost positive this should be payload_len
 	    sizeof(payload_len));
 
     // send over UART instead of radio for now
