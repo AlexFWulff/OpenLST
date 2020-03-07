@@ -137,7 +137,7 @@ void send_next_window(__xdata command_t *status_cmd) {
   __xdata command_buffer_t *buf = (__xdata command_buffer_t *) status_cmd;
   hsat_status_t *status = (__xdata hsat_status_t *) status_cmd->data;
 
-  // #TODO why not combine this with the next two lines?
+  // #TODO why not combine this with the next two lines? Might just be a SDCC thing
   uint16_t seqnum_start = 0;
   uint16_t seqnum_finish = 0;
    
